@@ -28,13 +28,183 @@ class RedditScraper:
             # Potentially re-raise the exception or handle it as per application's needs
             raise
 
-    # We will add more methods here in the next steps.
+    def _discover_subreddits(self, keywords: list[str]) -> list[str]:
+        """
+        Placeholder for subreddit discovery based on keywords.
+        For now, it will just return a predefined list or the input list.
+        Advanced AI-driven discovery can be integrated later.
+        """
+        print(f"Subreddit discovery called with keywords: {keywords}")
+        # For now, let's assume we have a predefined list or simply use keywords as subreddit names
+        # This can be expanded with actual PRAW subreddit search functionality
+        discovered = []
+        if keywords:
+            for keyword in keywords:
+                # Basic search, can be refined
+                try:
+                    # PRAW's subreddit search can be used here
+                    # For simplicity, we'll just add the keyword as a potential subreddit
+                    # In a real scenario, you'd search and validate these.
+                    print(f"Searching for subreddits related to: {keyword}")
+                    # Example: search_results = self.reddit.subreddits.search(keyword, limit=5)
+                    # for sub in search_results:
+                    #     discovered.append(sub.display_name)
+                    discovered.append(keyword) # Simplified for now
+                except Exception as e:
+                    print(f"Error during subreddit discovery for keyword '{keyword}': {e}")
+
+        # Fallback to a default list if no keywords provided or no results
+        if not discovered:
+            discovered = ['learnpython', 'datascience'] # Example default subreddits
+            print(f"No keywords provided or no subreddits found, using default: {discovered}")
+
+        # Remove duplicates
+        return list(set(discovered))
+
+    def fetch_posts_and_comments(self, subreddits: list[str], post_limit: int = 100, comment_limit_per_post: int = 20, min_upvotes_post: int = 3):
+        """
+        Fetches posts from specified subreddits and their comments.
+
+        Args:
+            subreddits: A list of subreddit names.
+            post_limit: Maximum number of posts to fetch per subreddit.
+            comment_limit_per_post: Maximum number of comments to fetch per post.
+                                    Set to None to fetch all top-level comments (be cautious).
+            min_upvotes_post: Minimum upvotes for a post to be included.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a post or a comment.
+        """
+        all_data = []
+        processed_post_ids = set()
+
+        if not subreddits:
+            print("No subreddits provided to fetch_posts_and_comments. Using discovered/default subreddits.")
+            # Example: use a keyword to discover some subreddits
+            subreddits = self._discover_subreddits(keywords=["technology", "programming"])
+                                                # ^^^ Example keywords, can be passed from outside
+
+        for sub_name in subreddits:
+            try:
+                print(f"Fetching posts from r/{sub_name}...")
+                subreddit = self.reddit.subreddit(sub_name)
+
+                # Fetching hot posts, can be changed to new, top, etc.
+                for post in subreddit.hot(limit=post_limit):
+                    if post.id in processed_post_ids:
+                        continue # Skip if post already processed (e.g., crossposts)
+
+                    if post.score >= min_upvotes_post:
+                        post_data = {
+                            'item_id': f"post_{post.id}",
+                            'parent_id': None, # Posts don't have a parent in this context
+                            'type': 'post',
+                            'subreddit': sub_name,
+                            'title': post.title,
+                            'content': post.selftext,
+                            'upvotes': post.score,
+                            'url': f"https://www.reddit.com{post.permalink}",
+                            'created_utc': datetime.utcfromtimestamp(post.created_utc).isoformat()
+                        }
+                        all_data.append(post_data)
+                        processed_post_ids.add(post.id)
+
+                        # Fetch comments for this post
+                        print(f"Fetching comments for post: {post.title[:50]}...")
+                        # Efficiently load comments:
+                        # replace_more(limit=0) fetches all top-level comments by removing "MoreComments" objects.
+                        # limit=None in replace_more would attempt to fetch *all* comments recursively, which can be very slow.
+                        # For fetching only top-level comments, limit=0 is appropriate.
+                        # If you need deeper comment threads, you might need a recursive approach or adjust the limit.
+                        post.comments.replace_more(limit=0) 
+
+                        comment_count = 0
+                        # post.comments.list() gives a flat list of all loaded comments (after replace_more)
+                        for comment in post.comments.list(): 
+                            if comment_limit_per_post is not None and comment_count >= comment_limit_per_post:
+                                break # Reached comment limit for this post
+
+                            comment_data = {
+                                'item_id': f"comment_{comment.id}",
+                                'parent_id': f"post_{post.id}",
+                                'type': 'comment',
+                                'subreddit': sub_name,
+                                'title': None, # Comments don't have titles
+                                'content': comment.body,
+                                'upvotes': comment.score,
+                                'url': f"https://www.reddit.com{comment.permalink}",
+                                'created_utc': datetime.utcfromtimestamp(comment.created_utc).isoformat()
+                            }
+                            all_data.append(comment_data)
+                            comment_count += 1
+            except Exception as e:
+                print(f"Error fetching data from r/{sub_name}: {e}")
+                # Continue to the next subreddit
+                continue
+
+        print(f"Fetched a total of {len(all_data)} items (posts and comments).")
+        return all_data
+
+
+    def save_to_csv(self, data: list[dict], filename_prefix: str = "reddit_data"):
+        """
+        Saves the scraped data to a CSV file in the data/scraped_data/ directory.
+
+        Args:
+            data: A list of dictionaries (output from fetch_posts_and_comments).
+            filename_prefix: Prefix for the CSV filename. Timestamp will be appended.
+        """
+        if not data:
+            print("No data to save.")
+            return
+
+        df = pd.DataFrame(data)
+
+        # Define the directory and ensure it exists
+        output_dir = "data/scraped_data"
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Create a unique filename with a timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{filename_prefix}_{timestamp}.csv"
+        filepath = os.path.join(output_dir, filename)
+
+        try:
+            df.to_csv(filepath, index=False, encoding='utf-8')
+            print(f"Data successfully saved to {filepath}")
+        except Exception as e:
+            print(f"Error saving data to CSV: {e}")
+
 
 if __name__ == '__main__':
-    # Example usage (for testing purposes)
     try:
         scraper = RedditScraper()
-        # Further testing code will go here
-        print("RedditScraper initialized successfully in __main__ block.")
+        print("RedditScraper initialized successfully.")
+
+        # Example: Discover subreddits (optional, can be passed directly)
+        # discovered_subreddits = scraper._discover_subreddits(keywords=["SaaS", "startup"])
+        # print(f"Discovered subreddits: {discovered_subreddits}")
+
+        # Define subreddits to scrape
+        target_subreddits = ['learnpython', 'SideProject', 'SaaS'] # Using a mix of defaults and specific ones
+
+        print(f"Starting to fetch posts and comments for subreddits: {target_subreddits}...")
+        # Fetch data with adjusted limits for testing
+        scraped_data = scraper.fetch_posts_and_comments(
+            subreddits=target_subreddits,
+            post_limit=5,             # Limit posts for quick testing
+            comment_limit_per_post=3, # Limit comments for quick testing
+            min_upvotes_post=1        # Lower upvote threshold for testing
+        )
+
+        if scraped_data:
+            print(f"Fetched {len(scraped_data)} items. Saving to CSV...")
+            scraper.save_to_csv(scraped_data, filename_prefix="test_reddit_scrape")
+        else:
+            print("No data was fetched. CSV will not be created.")
+
     except Exception as e:
-        print(f"Failed to initialize scraper in __main__ block: {e}")
+        print(f"An error occurred during the scraping process: {e}")
+        import traceback
+        traceback.print_exc()
+
