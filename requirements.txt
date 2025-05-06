@@ -2,7 +2,7 @@
 
 # Core Framework (choose one)
 # flask
-# django
+django
 
 # Reddit API Wrapper
 praw

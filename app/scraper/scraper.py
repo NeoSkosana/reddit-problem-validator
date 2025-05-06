@@ -1,7 +1,7 @@
 import praw
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.config import REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT, PRAW_SITE_NAME
 
 class RedditScraper:
@@ -104,7 +104,7 @@ class RedditScraper:
                             'content': post.selftext,
                             'upvotes': post.score,
                             'url': f"https://www.reddit.com{post.permalink}",
-                            'created_utc': datetime.utcfromtimestamp(post.created_utc).isoformat()
+                            'created_utc': datetime.fromtimestamp(post.created_utc, timezone.utc).isoformat()
                         }
                         all_data.append(post_data)
                         processed_post_ids.add(post.id)
@@ -133,7 +133,7 @@ class RedditScraper:
                                 'content': comment.body,
                                 'upvotes': comment.score,
                                 'url': f"https://www.reddit.com{comment.permalink}",
-                                'created_utc': datetime.utcfromtimestamp(comment.created_utc).isoformat()
+                                'created_utc': datetime.fromtimestamp(comment.created_utc, timezone.utc).isoformat()
                             }
                             all_data.append(comment_data)
                             comment_count += 1
