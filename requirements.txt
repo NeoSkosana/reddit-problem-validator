@@ -30,3 +30,4 @@ spacy
 
 # Utilities
 python-dotenv # For managing environment variables
+pandas # For data manipulation and CSV output
