@@ -1,0 +1,32 @@
+# Python dependencies for the Reddit Problem Validation System
+
+# Core Framework (choose one)
+# flask
+# django
+
+# Reddit API Wrapper
+praw
+
+# Web Scraping
+beautifulsoup4
+scrapy
+requests
+
+# AI/ML (choose based on preference/need)
+# tensorflow
+# torch
+# transformers
+scikit-learn
+nltk
+spacy
+
+# Database (choose one or both)
+# pymongo
+# psycopg2-binary
+
+# API Development
+# flask-restful  # If using Flask
+# djangorestframework # If using Django
+
+# Utilities
+python-dotenv # For managing environment variables
