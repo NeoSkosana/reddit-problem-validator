@@ -2,7 +2,16 @@ import praw
 import pandas as pd
 import os
 from datetime import datetime, timezone
-from app.core.config import REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT, PRAW_SITE_NAME
+try:
+    from app.core.config import REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT, PRAW_SITE_NAME
+except ImportError:
+    # Fallback for direct script execution
+    import sys
+    from pathlib import Path
+    root_dir = str(Path(__file__).resolve().parents[2])
+    if root_dir not in sys.path:
+        sys.path.append(root_dir)
+    from app.core.config import REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT, PRAW_SITE_NAME
 
 class RedditScraper:
     def __init__(self):
@@ -28,38 +37,50 @@ class RedditScraper:
             # Potentially re-raise the exception or handle it as per application's needs
             raise
 
-    def _discover_subreddits(self, keywords: list[str]) -> list[str]:
+    def _discover_subreddits(self, keywords: list[str], search_limit_per_keyword: int = 5) -> list[str]:
         """
-        Placeholder for subreddit discovery based on keywords.
-        For now, it will just return a predefined list or the input list.
-        Advanced AI-driven discovery can be integrated later.
+        Discovers subreddits based on keywords using PRAW's search.
+
+        Args:
+            keywords: A list of keywords to search for.
+            search_limit_per_keyword: Max number of subreddits to find per keyword.
+
+        Returns:
+            A list of unique subreddit display names.
         """
-        print(f"Subreddit discovery called with keywords: {keywords}")
-        # For now, let's assume we have a predefined list or simply use keywords as subreddit names
-        # This can be expanded with actual PRAW subreddit search functionality
-        discovered = []
-        if keywords:
-            for keyword in keywords:
-                # Basic search, can be refined
-                try:
-                    # PRAW's subreddit search can be used here
-                    # For simplicity, we'll just add the keyword as a potential subreddit
-                    # In a real scenario, you'd search and validate these.
-                    print(f"Searching for subreddits related to: {keyword}")
-                    # Example: search_results = self.reddit.subreddits.search(keyword, limit=5)
-                    # for sub in search_results:
-                    #     discovered.append(sub.display_name)
-                    discovered.append(keyword) # Simplified for now
-                except Exception as e:
-                    print(f"Error during subreddit discovery for keyword '{keyword}': {e}")
+        discovered_subreddits = set() # Use a set to automatically handle duplicates
 
-        # Fallback to a default list if no keywords provided or no results
-        if not discovered:
-            discovered = ['learnpython', 'datascience'] # Example default subreddits
-            print(f"No keywords provided or no subreddits found, using default: {discovered}")
+        if not keywords:
+            print("No keywords provided for subreddit discovery. Returning empty list.")
+            return []
 
-        # Remove duplicates
-        return list(set(discovered))
+        print(f"Discovering subreddits for keywords: {keywords}")
+        for keyword in keywords:
+            try:
+                print(f"Searching for subreddits related to '{keyword}'...")
+                # PRAW's subreddits.search() returns a generator of Subreddit objects
+                search_results = self.reddit.subreddits.search(keyword, limit=search_limit_per_keyword)
+
+                count = 0
+                for subreddit in search_results:
+                    # We are interested in the display name (e.g., 'learnpython')
+                    discovered_subreddits.add(subreddit.display_name)
+                    count += 1
+                print(f"Found {count} subreddits for keyword '{keyword}'.")
+
+            except Exception as e:
+                print(f"Error during subreddit discovery for keyword '{keyword}': {e}")
+                # Continue to the next keyword even if one fails
+                continue
+
+        if not discovered_subreddits:
+            print("No subreddits found for the given keywords. Consider broader terms or check Reddit status.")
+            # Optionally, return a default list or raise an error
+            # For now, returning an empty list if nothing is found.
+            # return ['learnpython', 'datascience'] # Example default
+
+        print(f"Discovered subreddits: {list(discovered_subreddits)}")
+        return list(discovered_subreddits)
 
     def fetch_posts_and_comments(self, subreddits: list[str], post_limit: int = 100, comment_limit_per_post: int = 20, min_upvotes_post: int = 3):
         """
@@ -176,35 +197,49 @@ class RedditScraper:
             print(f"Error saving data to CSV: {e}")
 
 
-if __name__ == '__main__':
+def main():
+    """Main function to run the scraper"""
     try:
         scraper = RedditScraper()
         print("RedditScraper initialized successfully.")
 
-        # Example: Discover subreddits (optional, can be passed directly)
-        # discovered_subreddits = scraper._discover_subreddits(keywords=["SaaS", "startup"])
-        # print(f"Discovered subreddits: {discovered_subreddits}")
+        # Test subreddit discovery
+        search_keywords = ["SaaS", "microservices", "indiehackers"]
+        print(f"\nAttempting to discover subreddits with keywords: {search_keywords}...")
+        discovered_subreddits = scraper._discover_subreddits(
+            keywords=search_keywords,
+            search_limit_per_keyword=3
+        )
 
         # Define subreddits to scrape
-        target_subreddits = ['learnpython', 'SideProject', 'SaaS'] # Using a mix of defaults and specific ones
+        if discovered_subreddits:
+            target_subreddits = discovered_subreddits
+        else:
+            print("\nNo subreddits discovered, using default list for scraping.")
+            target_subreddits = ['learnpython', 'SideProject']
 
-        print(f"Starting to fetch posts and comments for subreddits: {target_subreddits}...")
-        # Fetch data with adjusted limits for testing
+        if not target_subreddits:
+            print("\nNo target subreddits to scrape. Exiting.")
+            return
+
+        print(f"\nStarting to fetch posts and comments for subreddits: {target_subreddits}...")
         scraped_data = scraper.fetch_posts_and_comments(
             subreddits=target_subreddits,
-            post_limit=5,             # Limit posts for quick testing
-            comment_limit_per_post=3, # Limit comments for quick testing
-            min_upvotes_post=1        # Lower upvote threshold for testing
+            post_limit=5,
+            comment_limit_per_post=3,
+            min_upvotes_post=1
         )
 
         if scraped_data:
-            print(f"Fetched {len(scraped_data)} items. Saving to CSV...")
-            scraper.save_to_csv(scraped_data, filename_prefix="test_reddit_scrape")
+            print(f"\nFetched {len(scraped_data)} items. Saving to CSV...")
+            scraper.save_to_csv(scraped_data, filename_prefix="reddit_discovered_scrape")
         else:
-            print("No data was fetched. CSV will not be created.")
+            print("\nNo data was fetched. CSV will not be created.")
 
     except Exception as e:
         print(f"An error occurred during the scraping process: {e}")
         import traceback
         traceback.print_exc()
 
+if __name__ == '__main__':
+    main()

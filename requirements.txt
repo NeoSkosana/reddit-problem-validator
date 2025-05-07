@@ -21,8 +21,8 @@ nltk
 spacy
 
 # Database (choose one or both)
-# pymongo
-# psycopg2-binary
+pymongo
+psycopg2-binary
 
 # API Development
 # flask-restful  # If using Flask
