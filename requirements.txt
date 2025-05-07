@@ -13,12 +13,15 @@ scrapy
 requests
 
 # AI/ML (choose based on preference/need)
-# tensorflow
-# torch
-# transformers
+tensorflow
+torch>=2.0.0
+transformers
+tqdm>=4.65.0
+sentence-transformers>=2.2.2
 scikit-learn
 nltk
 spacy
+tf-keras>=2.15.0
 
 # Database (choose one or both)
 pymongo
@@ -26,7 +29,7 @@ psycopg2-binary
 
 # API Development
 # flask-restful  # If using Flask
-# djangorestframework # If using Django
+djangorestframework # If using Django
 
 # Utilities
 python-dotenv # For managing environment variables

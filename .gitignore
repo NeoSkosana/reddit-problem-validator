@@ -26,3 +26,7 @@ ENV/
 Thumbs.db
 UI/
 docs/
+
+# Test files
+test_uiux_scraper.py
+test_analyzer.py
